@@ -32,7 +32,7 @@ void parseASK(int16_t i, int16_t q)
     // filter sample with LPF set to half the transmission freq (443MHz)
     lpfsamp = (rsamp + lpfsamp * 10) / 11;
 
-    // threshold block in gnuradio
+    // threshold block 
     int sqsamp = lpfsamp > THRESHOLD ? 256 : 0;
 
     // Add this function call
