@@ -1,6 +1,20 @@
 #include <stdio.h>
 #include <stdint.h>
-
+/**
+ * @brief Explanation of the changes:
+We've added a new function synchronizeBitStream that takes sqsamp as input.
+Inside parseASK, we now call synchronizeBitStream(sqsamp) after calculating sqsamp.
+The synchronizeBitStream function does the following:
+Detects edges in the input signal.
+During synchronization, it counts edges until it reaches HALF_PREAMBLE_BITS.
+Once synchronized, it calculates the bitlength based on the synchronization period.
+After synchronization, it accumulates samples in a bucket for each bit period.
+When a full bit period is reached, it decides the bit value (0 or 1) and prints it.
+It continuously adjusts to the incoming signal by resetting counters on each edge.
+This implementation assumes that the preamble consists of alternating high and low signals. Adjust the HALF_PREAMBLE_BITS constant if needed to match your specific protocol.
+Remember to include appropriate error handling and potentially add a timeout mechanism for losing synchronization if no edges are detected for an extended period.
+ * 
+ */
 // This is a total guess
 #define FILTER_COEF 0.4
 // THRESHOLD level for incoming samples
@@ -10,11 +24,7 @@
 
 void parseASK(int16_t i, int16_t q)
 {
-    static int bitlength = 0;       // Number of samples a bit should take
-    static int bitstream = 0;       // flag for when we should start generating bit data
-    static int bitlength_count = 0; // Number of samples that have been measured to work out timing
-    static int bucket = 0;          // Bucket used to capture bit samples
-    static int16_t lpfsamp = 0;
+     static int16_t lpfsamp = 0;
 
     // rectify sample - doubles freq
     int16_t rsamp = (i < 0 ? -i : i)*100;
@@ -25,11 +35,70 @@ void parseASK(int16_t i, int16_t q)
     // threshold block in gnuradio
     int sqsamp = lpfsamp > THRESHOLD ? 256 : 0;
 
-    // edge trigger
-    static int16_t prevsqsamp = 0;
+    // Add this function call
+    synchronizeBitStream(sqsamp);
 
-    if (i!=0)
-    printf("%d,%d,%d,%d,%d\n",i,q,rsamp,lpfsamp,sqsamp);
+}
+
+// Add this new function
+void synchronizeBitStream(int sqsamp)
+{
+    static int bitlength = 0;
+    static int bitstream = 0;
+    static int bitlength_count = 0;
+    static int bucket = 0;
+    static int prev_sqsamp = 0;
+    static int sync_count = 0;
+    static int bit_value = 0;
+
+    // Edge detection
+    if (sqsamp != prev_sqsamp)
+    {
+        if (bitstream == 0)
+        {
+            // Still synchronizing
+            sync_count++;
+            if (sync_count >= HALF_PREAMBLE_BITS)
+            {
+                // Synchronized, start decoding
+                bitstream = 1;
+                bitlength = bitlength_count / HALF_PREAMBLE_BITS;
+                bitlength_count = 0;
+                bucket = 0;
+            }
+        }
+        else
+        {
+            // Already synchronized, reset counters
+            bitlength_count = 0;
+            bucket = 0;
+        }
+    }
+
+    if (bitstream == 1)
+    {
+        // Accumulate samples
+        bucket += sqsamp;
+        bitlength_count++;
+
+        if (bitlength_count >= bitlength)
+        {
+            // Decide bit value
+            bit_value = (bucket > (bitlength * 128)) ? 1 : 0;
+            printf("Bit: %d\n", bit_value);
+
+            // Reset for next bit
+            bitlength_count = 0;
+            bucket = 0;
+        }
+    }
+    else
+    {
+        // Still synchronizing, count samples between edges
+        bitlength_count++;
+    }
+
+    prev_sqsamp = sqsamp;
 }
 
 // Read the file assuming it is a binary dump with 2 bytes per sample
