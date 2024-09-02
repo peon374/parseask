@@ -16,7 +16,7 @@ Remember to include appropriate error handling and potentially add a timeout mec
  * 
  */
 // This is a total guess
-#define FILTER_COEF 0.4
+#define FILTER_COEF 10
 // THRESHOLD level for incoming samples
 #define THRESHOLD 64
 // This is a guess but it represents the number of samples we are going to take to get in sync
@@ -30,7 +30,7 @@ void parseASK(int16_t i, int16_t q)
     int16_t rsamp = (i < 0 ? -i : i)*100;
 
     // filter sample with LPF set to half the transmission freq (443MHz)
-    lpfsamp = (rsamp + lpfsamp * 10) / 11;
+    lpfsamp = (rsamp + (lpfsamp * FILTER_COEF)) / (FILTER_COEF+1);
 
     // threshold block 
     int sqsamp = lpfsamp > THRESHOLD ? 256 : 0;
